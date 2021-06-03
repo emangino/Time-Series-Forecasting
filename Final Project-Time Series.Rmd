@@ -1,0 +1,112 @@
+---
+title: "Final Project-Time Series"
+author: "Erica Mangino"
+output: word_document
+---
+
+#Appendix
+
+```{r}
+library(TSA)
+
+hotel<-read.csv("monthly-hotel-occupied-room-av-6.csv")
+hotel.ts<-ts(hotel$Occupied,start = c(1963, 1), frequency = 12)
+
+plot(hotel.ts,type="l")
+points(y=hotel.ts,x=time(hotel.ts),pch=as.vector(season(hotel.ts)))
+
+##Transformations
+
+BoxCox.ar(hotel.ts, method = "burg")
+
+hotel.ts<-log(hotel.ts)
+
+plot(hotel.ts,type="l")
+points(y=hotel.ts,x=time(hotel.ts),pch=as.vector(season(hotel.ts)))
+
+acf(hotel.ts)
+
+##difference to get rid of the trend
+
+
+plot(hotel.ts,ylab="Total Occupancy in Hotel",xlab="Year",type="o")
+plot(diff(hotel.ts),ylab="First differences",xlab="Year",type="o")
+plot(diff(hotel.ts,lag=12),ylab="First seasonal differences (s=12)",xlab="Year",type="o")
+plot(diff(diff(hotel.ts),lag=12),ylab="Combined first differences",xlab="Year",type="o")
+
+
+hotel.ts.dif<-diff(diff(hotel.ts,lag=12))
+
+
+##ACF and PACF
+
+acf(hotel.ts.dif,main="Sample ACF",lag.max = 48)
+#spikes at 1, 3, 5, 6, 12, 18 tails off
+
+pacf(hotel.ts.dif,main="Sample PACF",lag.max = 48)
+#spikes at 1, 3, 5, 11, 12, 18 cuts off after 18
+
+##Fit and diagnosis
+
+#ARIMA(1,1,0) x ARIMA(2,1,0)_{6}
+hotel.arima010.arima210 =arima(hotel.ts,order=c(1,1,0),method='ML',seasonal=list(order=c(2,1,0),period=6))
+
+###Residual Tests
+
+plot(rstandard(hotel.arima010.arima210),xlab="Time", ylab="Standardised Residuals",type="p")
+abline(h=0)
+
+hist(rstandard(hotel.arima010.arima210),xlab = "Standardized Residuals",main = "")
+
+qqnorm(rstandard(hotel.arima010.arima210),main="")
+qqline(rstandard(hotel.arima010.arima210))
+
+acf(rstandard(hotel.arima010.arima210))
+
+
+##Shapiro Test - Normality
+
+shapiro.test(rstandard(hotel.arima010.arima210))
+
+
+##Runs Test - Independence 
+
+runs(rstandard(hotel.arima010.arima210))
+
+tsdiag(hotel.arima010.arima210)
+
+# Overfitting
+arima(hotel.ts,order=c(2,1,0),method='ML',seasonal=list(order=c(2,1,0),period=6))
+arima(hotel.ts,order=c(1,1,1),method='ML',seasonal=list(order=c(2,1,0),period=6))
+arima(hotel.ts,order=c(1,1,0),method='ML',seasonal=list(order=c(3,1,0),period=6))
+arima(hotel.ts,order=c(1,1,0),method='ML',seasonal=list(order=c(2,1,1),period=6))
+
+
+# Forecasting
+# Full data set: 1/63-12/76
+hotel.arima010.arima210.fit=arima(hotel.ts,order=c(1,1,0),method='ML',seasonal=list(order=c(2,1,0),period=6))
+# MMSE forecasts
+hotel.arima010.arima210.predict <- predict(hotel.arima010.arima210.fit,n.ahead=24)
+round(hotel.arima010.arima210.predict$pred,3)
+round(hotel.arima010.arima210.predict$se,3)
+
+
+# Display prediction intervals (24 months ahead)
+year.temp = c(1977,1977.083,1977.166,1977.250,1977.333,1977.416,1977.500,1977.583,1977.666,1977.750,1977.833,1977.916)
+year.temp.2 = c(year.temp,year.temp+1)
+
+# Compute prediction intervals
+lower.pi<-hotel.arima010.arima210.predict$pred-qnorm(0.975,0,1)*hotel.arima010.arima210.predict$se
+upper.pi<-hotel.arima010.arima210.predict$pred+qnorm(0.975,0,1)*hotel.arima010.arima210.predict$se
+data.frame(Month=year.temp.2,lower.pi,upper.pi)
+# Original series starts at Month = Jan 1963
+# Note: Argument n1=c(1974,1) starts plot at Time = Jan 1974
+# Note: Argument pch=16 produces a small black circle (MMSE prediction)
+plot(hotel.arima010.arima210.fit,n.ahead=24,col='red',type='b',pch=16,n1=c(1974,1),ylab="Total Occupancy of Hotels",xlab="Year")
+# Put prediction interval lines on plot (darker than default)
+lines(y=lower.pi,x=year.temp.2,lwd=2,col="red",lty="dashed")
+lines(y=upper.pi,x=year.temp.2,lwd=2,col="red",lty="dashed")
+
+```
+
+
